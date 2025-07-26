@@ -19,16 +19,30 @@ interface Review {
   date: string;
 }
 
+interface PromoCode {
+  code: string;
+  discount: number;
+  type: 'percentage' | 'fixed';
+  minAmount?: number;
+  maxDiscount?: number;
+  validUntil: string;
+  description: string;
+}
+
 interface Product {
   id: number;
   name: string;
   price: number;
+  originalPrice?: number;
+  discount?: number;
   category: string;
   brand: string;
   image: string;
   description: string;
   rating: number;
   reviewCount: number;
+  isOnSale?: boolean;
+  saleEndDate?: string;
 }
 
 interface CartItem extends Product {
@@ -46,6 +60,9 @@ const Index = () => {
   const [newRating, setNewRating] = useState(5);
   const [newComment, setNewComment] = useState('');
   const [userName, setUserName] = useState('');
+  const [promoCode, setPromoCode] = useState('');
+  const [appliedPromo, setAppliedPromo] = useState<PromoCode | null>(null);
+  const [promoError, setPromoError] = useState('');
 
   const products: Product[] = [
     {
@@ -57,7 +74,11 @@ const Index = () => {
       image: "/img/952529fe-2198-416a-bf54-d64de6c25411.jpg",
       description: "Премиальные беспроводные наушники с активным шумоподавлением",
       rating: 4.5,
-      reviewCount: 24
+      reviewCount: 24,
+      isOnSale: true,
+      originalPrice: 15999,
+      discount: 19,
+      saleEndDate: "2024-02-01"
     },
     {
       id: 2,
@@ -90,7 +111,11 @@ const Index = () => {
       image: "/img/952529fe-2198-416a-bf54-d64de6c25411.jpg",
       description: "Профессиональная игровая мышь с RGB подсветкой",
       rating: 4.7,
-      reviewCount: 203
+      reviewCount: 203,
+      isOnSale: true,
+      originalPrice: 4999,
+      discount: 20,
+      saleEndDate: "2024-01-31"
     },
     {
       id: 5,
@@ -112,12 +137,45 @@ const Index = () => {
       image: "/img/c1e5c24a-f79c-485b-8951-3b0aed3c1563.jpg",
       description: "Профессиональная веб-камера для стриминга",
       rating: 4.6,
-      reviewCount: 42
+      reviewCount: 42,
+      isOnSale: true,
+      originalPrice: 19999,
+      discount: 20,
+      saleEndDate: "2024-02-05"
     }
   ];
 
   const categories = ["Аудио", "Телефоны", "Компьютеры", "Аксессуары"];
   const brands = ["TechSound", "SmartTech", "LaptopCorp", "GameGear", "KeyMaster", "CamPro"];
+
+  const promoCodes: PromoCode[] = [
+    {
+      code: "WELCOME20",
+      discount: 20,
+      type: "percentage",
+      minAmount: 10000,
+      maxDiscount: 5000,
+      validUntil: "2024-02-29",
+      description: "Скидка 20% для новых пользователей"
+    },
+    {
+      code: "SAVE1000",
+      discount: 1000,
+      type: "fixed",
+      minAmount: 5000,
+      validUntil: "2024-03-31",
+      description: "Фиксированная скидка 1000₽"
+    },
+    {
+      code: "TECHFAN",
+      discount: 15,
+      type: "percentage",
+      minAmount: 15000,
+      maxDiscount: 7500,
+      validUntil: "2024-02-15",
+      description: "Для любителей технологий - 15%"
+    }
+  ];
 
   const reviews: Review[] = [
     {
@@ -177,8 +235,62 @@ const Index = () => {
     return cartItems.reduce((total, item) => total + item.price * item.quantity, 0);
   };
 
+  const getDiscountAmount = () => {
+    if (!appliedPromo) return 0;
+    
+    const subtotal = getTotalPrice();
+    if (appliedPromo.minAmount && subtotal < appliedPromo.minAmount) return 0;
+    
+    let discount = 0;
+    if (appliedPromo.type === 'percentage') {
+      discount = (subtotal * appliedPromo.discount) / 100;
+      if (appliedPromo.maxDiscount && discount > appliedPromo.maxDiscount) {
+        discount = appliedPromo.maxDiscount;
+      }
+    } else {
+      discount = appliedPromo.discount;
+    }
+    
+    return Math.min(discount, subtotal);
+  };
+
+  const getFinalPrice = () => {
+    return getTotalPrice() - getDiscountAmount();
+  };
+
   const getTotalItems = () => {
     return cartItems.reduce((total, item) => total + item.quantity, 0);
+  };
+
+  const applyPromoCode = () => {
+    setPromoError('');
+    const code = promoCodes.find(p => p.code.toLowerCase() === promoCode.toLowerCase());
+    
+    if (!code) {
+      setPromoError('Промокод не найден');
+      return;
+    }
+    
+    const currentDate = new Date();
+    const validUntil = new Date(code.validUntil);
+    if (currentDate > validUntil) {
+      setPromoError('Срок действия промокода истек');
+      return;
+    }
+    
+    const subtotal = getTotalPrice();
+    if (code.minAmount && subtotal < code.minAmount) {
+      setPromoError(`Минимальная сумма заказа: ${code.minAmount.toLocaleString()}₽`);
+      return;
+    }
+    
+    setAppliedPromo(code);
+    setPromoCode('');
+  };
+
+  const removePromoCode = () => {
+    setAppliedPromo(null);
+    setPromoError('');
   };
 
   const toggleCategory = (category: string) => {
@@ -340,12 +452,64 @@ const Index = () => {
                       </div>
                     ))}
                     {cartItems.length > 0 && (
-                      <div className="pt-4 border-t">
-                        <div className="flex justify-between text-lg font-bold">
-                          <span>Итого:</span>
-                          <span>{getTotalPrice().toLocaleString()}₽</span>
+                      <div className="pt-4 border-t space-y-4">
+                        {/* Promo Code Section */}
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium">Промокод</label>
+                          <div className="flex gap-2">
+                            <Input
+                              value={promoCode}
+                              onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
+                              placeholder="Введите промокод"
+                              className="flex-1"
+                            />
+                            <Button 
+                              onClick={applyPromoCode}
+                              disabled={!promoCode.trim()}
+                              size="sm"
+                            >
+                              Применить
+                            </Button>
+                          </div>
+                          {promoError && (
+                            <p className="text-red-500 text-xs">{promoError}</p>
+                          )}
+                          {appliedPromo && (
+                            <div className="flex items-center justify-between bg-green-50 p-2 rounded text-sm">
+                              <span className="text-green-700">
+                                {appliedPromo.code} - {appliedPromo.description}
+                              </span>
+                              <Button 
+                                variant="ghost" 
+                                size="sm" 
+                                onClick={removePromoCode}
+                                className="h-6 w-6 p-0"
+                              >
+                                <Icon name="X" size={12} />
+                              </Button>
+                            </div>
+                          )}
                         </div>
-                        <Button className="w-full mt-4 bg-black hover:bg-gray-800">
+
+                        {/* Price Summary */}
+                        <div className="space-y-2">
+                          <div className="flex justify-between text-sm">
+                            <span>Подытог:</span>
+                            <span>{getTotalPrice().toLocaleString()}₽</span>
+                          </div>
+                          {appliedPromo && getDiscountAmount() > 0 && (
+                            <div className="flex justify-between text-sm text-green-600">
+                              <span>Скидка ({appliedPromo.code}):</span>
+                              <span>-{getDiscountAmount().toLocaleString()}₽</span>
+                            </div>
+                          )}
+                          <div className="flex justify-between text-lg font-bold border-t pt-2">
+                            <span>Итого:</span>
+                            <span>{getFinalPrice().toLocaleString()}₽</span>
+                          </div>
+                        </div>
+                        
+                        <Button className="w-full bg-black hover:bg-gray-800">
                           Оформить заказ
                         </Button>
                       </div>
@@ -367,6 +531,26 @@ const Index = () => {
             <Button size="lg" className="bg-white text-black hover:bg-gray-100">
               Перейти в каталог
             </Button>
+          </div>
+        </div>
+      </section>
+
+      {/* Promo Banner */}
+      <section className="bg-gradient-to-r from-red-500 to-pink-500 text-white py-8">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center">
+            <h2 className="text-3xl font-bold mb-4">🔥 Горячие скидки! 🔥</h2>
+            <div className="flex flex-wrap justify-center gap-6 text-sm">
+              <div className="bg-white/20 px-4 py-2 rounded-lg">
+                <span className="font-bold">WELCOME20</span> - 20% скидка для новых клиентов
+              </div>
+              <div className="bg-white/20 px-4 py-2 rounded-lg">
+                <span className="font-bold">SAVE1000</span> - 1000₽ скидка на заказ от 5000₽
+              </div>
+              <div className="bg-white/20 px-4 py-2 rounded-lg">
+                <span className="font-bold">TECHFAN</span> - 15% для любителей техники
+              </div>
+            </div>
           </div>
         </div>
       </section>
@@ -439,8 +623,15 @@ const Index = () => {
             <div className="flex-1">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {filteredProducts.map(product => (
-                  <Card key={product.id} className="hover:shadow-lg transition-shadow duration-300">
-                    <CardHeader className="p-0">
+                  <Card key={product.id} className="hover:shadow-lg transition-shadow duration-300 relative">
+                    <CardHeader className="p-0 relative">
+                      {product.isOnSale && (
+                        <div className="absolute top-2 left-2 z-10">
+                          <Badge className="bg-red-500 hover:bg-red-600 text-white font-bold">
+                            -{product.discount}%
+                          </Badge>
+                        </div>
+                      )}
                       <img
                         src={product.image}
                         alt={product.name}
@@ -526,7 +717,21 @@ const Index = () => {
                       </div>
                       
                       <div className="flex items-center justify-between">
-                        <span className="text-2xl font-bold text-black">{product.price.toLocaleString()}₽</span>
+                        <div className="flex flex-col">
+                          {product.isOnSale && product.originalPrice ? (
+                            <div className="flex items-center gap-2">
+                              <span className="text-2xl font-bold text-black">{product.price.toLocaleString()}₽</span>
+                              <span className="text-lg text-gray-500 line-through">{product.originalPrice.toLocaleString()}₽</span>
+                            </div>
+                          ) : (
+                            <span className="text-2xl font-bold text-black">{product.price.toLocaleString()}₽</span>
+                          )}
+                          {product.isOnSale && product.saleEndDate && (
+                            <span className="text-xs text-red-600 font-medium">
+                              Акция до {new Date(product.saleEndDate).toLocaleDateString('ru-RU')}
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </CardContent>
                     <CardFooter className="p-4 pt-0">
