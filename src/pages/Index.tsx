@@ -6,7 +6,18 @@ import { Input } from '@/components/ui/input';
 import { Slider } from '@/components/ui/slider';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Textarea } from '@/components/ui/textarea';
 import Icon from '@/components/ui/icon';
+
+interface Review {
+  id: number;
+  productId: number;
+  userName: string;
+  rating: number;
+  comment: string;
+  date: string;
+}
 
 interface Product {
   id: number;
@@ -16,6 +27,8 @@ interface Product {
   brand: string;
   image: string;
   description: string;
+  rating: number;
+  reviewCount: number;
 }
 
 interface CartItem extends Product {
@@ -28,6 +41,11 @@ const Index = () => {
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [selectedBrands, setSelectedBrands] = useState<string[]>([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [isReviewDialogOpen, setIsReviewDialogOpen] = useState(false);
+  const [newRating, setNewRating] = useState(5);
+  const [newComment, setNewComment] = useState('');
+  const [userName, setUserName] = useState('');
 
   const products: Product[] = [
     {
@@ -37,7 +55,9 @@ const Index = () => {
       category: "Аудио",
       brand: "TechSound",
       image: "/img/952529fe-2198-416a-bf54-d64de6c25411.jpg",
-      description: "Премиальные беспроводные наушники с активным шумоподавлением"
+      description: "Премиальные беспроводные наушники с активным шумоподавлением",
+      rating: 4.5,
+      reviewCount: 24
     },
     {
       id: 2,
@@ -46,7 +66,9 @@ const Index = () => {
       category: "Телефоны",
       brand: "SmartTech",
       image: "/img/09130635-82a4-4b3d-8e84-535934686c60.jpg",
-      description: "Флагманский смартфон с передовыми технологиями"
+      description: "Флагманский смартфон с передовыми технологиями",
+      rating: 4.8,
+      reviewCount: 156
     },
     {
       id: 3,
@@ -55,7 +77,9 @@ const Index = () => {
       category: "Компьютеры",
       brand: "LaptopCorp",
       image: "/img/c1e5c24a-f79c-485b-8951-3b0aed3c1563.jpg",
-      description: "Мощный и легкий ультрабук для профессионалов"
+      description: "Мощный и легкий ультрабук для профессионалов",
+      rating: 4.2,
+      reviewCount: 89
     },
     {
       id: 4,
@@ -64,7 +88,9 @@ const Index = () => {
       category: "Аксессуары",
       brand: "GameGear",
       image: "/img/952529fe-2198-416a-bf54-d64de6c25411.jpg",
-      description: "Профессиональная игровая мышь с RGB подсветкой"
+      description: "Профессиональная игровая мышь с RGB подсветкой",
+      rating: 4.7,
+      reviewCount: 203
     },
     {
       id: 5,
@@ -73,7 +99,9 @@ const Index = () => {
       category: "Аксессуары",
       brand: "KeyMaster",
       image: "/img/09130635-82a4-4b3d-8e84-535934686c60.jpg",
-      description: "Механическая клавиатура с Blue переключателями"
+      description: "Механическая клавиатура с Blue переключателями",
+      rating: 4.3,
+      reviewCount: 67
     },
     {
       id: 6,
@@ -82,12 +110,49 @@ const Index = () => {
       category: "Аксессуары",
       brand: "CamPro",
       image: "/img/c1e5c24a-f79c-485b-8951-3b0aed3c1563.jpg",
-      description: "Профессиональная веб-камера для стриминга"
+      description: "Профессиональная веб-камера для стриминга",
+      rating: 4.6,
+      reviewCount: 42
     }
   ];
 
   const categories = ["Аудио", "Телефоны", "Компьютеры", "Аксессуары"];
   const brands = ["TechSound", "SmartTech", "LaptopCorp", "GameGear", "KeyMaster", "CamPro"];
+
+  const reviews: Review[] = [
+    {
+      id: 1,
+      productId: 1,
+      userName: "Алексей К.",
+      rating: 5,
+      comment: "Отличные наушники! Звук очень качественный, шумоподавление работает превосходно.",
+      date: "2024-01-15"
+    },
+    {
+      id: 2,
+      productId: 1,
+      userName: "Мария С.",
+      rating: 4,
+      comment: "Хорошие наушники, но батарея могла бы работать дольше.",
+      date: "2024-01-10"
+    },
+    {
+      id: 3,
+      productId: 2,
+      userName: "Дмитрий П.",
+      rating: 5,
+      comment: "Лучший смартфон, который у меня был. Камера просто шикарная!",
+      date: "2024-01-20"
+    },
+    {
+      id: 4,
+      productId: 4,
+      userName: "Игорь В.",
+      rating: 5,
+      comment: "Идеальная игровая мышь. Очень точная и удобная.",
+      date: "2024-01-18"
+    }
+  ];
 
   const filteredProducts = products.filter(product => {
     const inPriceRange = product.price >= priceRange[0] && product.price <= priceRange[1];
@@ -129,6 +194,97 @@ const Index = () => {
       prev.includes(brand)
         ? prev.filter(b => b !== brand)
         : [...prev, brand]
+    );
+  };
+
+  const getProductReviews = (productId: number) => {
+    return reviews.filter(review => review.productId === productId);
+  };
+
+  const addReview = () => {
+    if (!selectedProduct || !userName.trim() || !newComment.trim()) return;
+    
+    const newReview: Review = {
+      id: Date.now(),
+      productId: selectedProduct.id,
+      userName: userName.trim(),
+      rating: newRating,
+      comment: newComment.trim(),
+      date: new Date().toISOString().split('T')[0]
+    };
+    
+    reviews.push(newReview);
+    setNewComment('');
+    setUserName('');
+    setNewRating(5);
+    setIsReviewDialogOpen(false);
+  };
+
+  const StarRating = ({ rating, size = 16, showCount = false, count = 0 }: { 
+    rating: number; 
+    size?: number; 
+    showCount?: boolean; 
+    count?: number; 
+  }) => {
+    const fullStars = Math.floor(rating);
+    const hasHalfStar = rating % 1 !== 0;
+    
+    return (
+      <div className="flex items-center gap-1">
+        <div className="flex">
+          {[...Array(5)].map((_, i) => (
+            <Icon
+              key={i}
+              name="Star"
+              size={size}
+              className={`${
+                i < fullStars
+                  ? 'text-yellow-400 fill-yellow-400'
+                  : i === fullStars && hasHalfStar
+                  ? 'text-yellow-400 fill-yellow-400'
+                  : 'text-gray-300'
+              }`}
+            />
+          ))}
+        </div>
+        {showCount && (
+          <span className="text-sm text-gray-500 ml-1">
+            ({count})
+          </span>
+        )}
+      </div>
+    );
+  };
+
+  const InteractiveStarRating = ({ rating, onRatingChange }: { 
+    rating: number; 
+    onRatingChange: (rating: number) => void; 
+  }) => {
+    const [hoverRating, setHoverRating] = useState(0);
+    
+    return (
+      <div className="flex">
+        {[1, 2, 3, 4, 5].map((star) => (
+          <button
+            key={star}
+            type="button"
+            className="p-1"
+            onMouseEnter={() => setHoverRating(star)}
+            onMouseLeave={() => setHoverRating(0)}
+            onClick={() => onRatingChange(star)}
+          >
+            <Icon
+              name="Star"
+              size={20}
+              className={`${
+                star <= (hoverRating || rating)
+                  ? 'text-yellow-400 fill-yellow-400'
+                  : 'text-gray-300'
+              } transition-colors`}
+            />
+          </button>
+        ))}
+      </div>
     );
   };
 
@@ -300,6 +456,75 @@ const Index = () => {
                       </div>
                       <CardTitle className="text-lg mb-2 text-black">{product.name}</CardTitle>
                       <p className="text-gray-600 text-sm mb-3">{product.description}</p>
+                      
+                      {/* Rating */}
+                      <div className="flex items-center justify-between mb-3">
+                        <StarRating 
+                          rating={product.rating} 
+                          showCount={true} 
+                          count={product.reviewCount}
+                        />
+                        <Dialog>
+                          <DialogTrigger asChild>
+                            <Button variant="ghost" size="sm" className="text-xs text-blue-600 hover:text-blue-800">
+                              Отзывы
+                            </Button>
+                          </DialogTrigger>
+                          <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+                            <DialogHeader>
+                              <DialogTitle>{product.name}</DialogTitle>
+                              <DialogDescription>
+                                Отзывы покупателей
+                              </DialogDescription>
+                            </DialogHeader>
+                            <div className="space-y-6">
+                              {/* Overall rating */}
+                              <div className="flex items-center gap-4 p-4 bg-gray-50 rounded-lg">
+                                <div className="text-center">
+                                  <div className="text-3xl font-bold text-black">{product.rating}</div>
+                                  <StarRating rating={product.rating} size={20} />
+                                  <div className="text-sm text-gray-500 mt-1">
+                                    {product.reviewCount} отзывов
+                                  </div>
+                                </div>
+                                <div className="flex-1">
+                                  <Button 
+                                    onClick={() => {
+                                      setSelectedProduct(product);
+                                      setIsReviewDialogOpen(true);
+                                    }}
+                                    className="w-full bg-black hover:bg-gray-800"
+                                  >
+                                    Написать отзыв
+                                  </Button>
+                                </div>
+                              </div>
+                              
+                              {/* Reviews list */}
+                              <div className="space-y-4">
+                                {getProductReviews(product.id).map(review => (
+                                  <div key={review.id} className="border-b pb-4">
+                                    <div className="flex items-center justify-between mb-2">
+                                      <div className="flex items-center gap-3">
+                                        <span className="font-medium text-black">{review.userName}</span>
+                                        <StarRating rating={review.rating} size={14} />
+                                      </div>
+                                      <span className="text-sm text-gray-500">{review.date}</span>
+                                    </div>
+                                    <p className="text-gray-700">{review.comment}</p>
+                                  </div>
+                                ))}
+                                {getProductReviews(product.id).length === 0 && (
+                                  <p className="text-gray-500 text-center py-8">
+                                    Пока нет отзывов. Будьте первым!
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          </DialogContent>
+                        </Dialog>
+                      </div>
+                      
                       <div className="flex items-center justify-between">
                         <span className="text-2xl font-bold text-black">{product.price.toLocaleString()}₽</span>
                       </div>
@@ -365,6 +590,62 @@ const Index = () => {
           </div>
         </div>
       </footer>
+
+      {/* Review Dialog */}
+      <Dialog open={isReviewDialogOpen} onOpenChange={setIsReviewDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Написать отзыв</DialogTitle>
+            <DialogDescription>
+              {selectedProduct?.name}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium mb-2">Ваше имя</label>
+              <Input
+                value={userName}
+                onChange={(e) => setUserName(e.target.value)}
+                placeholder="Введите ваше имя"
+              />
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium mb-2">Оценка</label>
+              <InteractiveStarRating 
+                rating={newRating} 
+                onRatingChange={setNewRating} 
+              />
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium mb-2">Комментарий</label>
+              <Textarea
+                value={newComment}
+                onChange={(e) => setNewComment(e.target.value)}
+                placeholder="Поделитесь своими впечатлениями о товаре"
+                rows={4}
+              />
+            </div>
+            
+            <div className="flex gap-3">
+              <Button 
+                onClick={addReview}
+                className="flex-1 bg-black hover:bg-gray-800"
+                disabled={!userName.trim() || !newComment.trim()}
+              >
+                Опубликовать отзыв
+              </Button>
+              <Button 
+                variant="outline" 
+                onClick={() => setIsReviewDialogOpen(false)}
+              >
+                Отмена
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
